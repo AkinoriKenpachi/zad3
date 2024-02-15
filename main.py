@@ -1,7 +1,33 @@
 import requests
 import unittest
+import csv
+import os.path
 
-code_list = ["USD", "EUR"]
+
+code_list: list = []
+
+
+def code_list_select(res):
+    clist: list = []
+    temp: list = []
+    for x in res:
+        temp.append(x['rates'])
+    for x in temp:
+        for y in range(len(x)):
+            clist.append(x[y]['code'])
+    return clist
+
+
+def code_list_create(cl):
+    communication = requests.get(
+        f'https://api.nbp.pl/api/exchangerates/tables/c/?format=json')
+    response = communication.json()
+    cl.append(code_list_select(response))
+    if not os.path.isfile("codelist.txt"):
+        with open('codelist.txt', 'w', newline='', encoding='UTF8') as code_file:
+            csv.writer(code_file).writerow(cl[0])
+            code_file.close()
+
 
 def check(temp):
     try:
@@ -22,7 +48,6 @@ def check(temp):
         return 3
 
 
-
 def date(date_test):
     try:
         # komunikacja z API
@@ -39,9 +64,11 @@ def date(date_test):
 
 def interface(text):
     while True:
-        print(code_list)
-        temp = input(f"Podaj wartość {text} oraz walute z podanych powyżej \nFormat: np. 100 USD:\n").split()
-        #check(temp)
+        code_list_create(code_list)
+        print(open('codelist.txt').read())
+        temp = input(f"Podaj wartość {text} oraz walute z podanych powyżej "
+                     f"\nw format [waluta kod-waluty np. 100 USD]\n").split()
+        check(temp)
 
 
 class Test(unittest.TestCase):
@@ -68,4 +95,5 @@ class Test(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    # unittest.main()
+    interface("faktury")
