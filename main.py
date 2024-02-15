@@ -1,6 +1,6 @@
 import requests
-import unittest
 import csv
+import datetime
 import os.path
 
 
@@ -34,32 +34,47 @@ def check(temp):
         float(temp[0])
     except IndexError:
         print("Musisz podać wartość")
-        return 0
     except ValueError:
         print("Wartosc musi być liczbą")
-        return 1
     try:
         temp[1].upper().isdigit() or code_list[0].index(temp[1].upper())
     except IndexError:
         print("Musisz podać walute")
-        return 2
     except ValueError:
         print("Błędnie podana waluta albo brak jej na liście")
-        return 3
 
 
-def date(date_test):
-    try:
-        # komunikacja z API
-        communication = requests.get(f'https://api.nbp.pl/api/exchangerates/rates/c/USD/{date_test}/?format=json')
-        response = communication.json()
-        exchange_rate = response['rates'][0]['bid']
-        value_in_pln = 100 * exchange_rate
+def date_check(action, data_action):
+    data_set: list = []
+    value = float(data_action[0])
+    currency = data_action[1].upper()
+    while True:
+        while True:
+            try:
+                date = input("Podaj datę wystawienia (RRRR-MM-DD)\n")
+                datetime.date.fromisoformat(date)
+                break
+            except ValueError:
+                print("[BŁĄD] Nieprawidłowy format danych, proszę podać datę w formacie RRRR-MM-DD")
+        try:
+            # komunikacja z API
+            communication = requests.get(
+                f'https://api.nbp.pl/api/exchangerates/rates/c/{currency}/{date}/?format=json')
+            response = communication.json()
+            exchange_rate = response['rates'][0]['bid']
+            value_in_pln = value * exchange_rate
 
-        return value_in_pln
+            data_set = [value, currency, exchange_rate, value_in_pln, date]
 
-    except ValueError:
-        print("Brak kursu walut dla danego dnia, proszę wprowadzić inną datę.")
+            with open(action, 'w', newline='', encoding='UTF8') as file:
+                writer = csv.writer(file)
+                writer.writerow(data_set)
+                file.close()
+
+        except ValueError:
+            print("[BŁĄD] Brak kursu walut dla danego dnia, proszę wprowadzić inną datę.")
+
+        return data_set
 
 
 def interface(text):
@@ -70,30 +85,24 @@ def interface(text):
                      f"\nw format [waluta kod-waluty np. 100 USD]\n").split()
         check(temp)
 
-
-class Test(unittest.TestCase):
-
-    def test_date(self):
-        self.assertEqual(date("2024-01-02"), 388.62)
-        self.assertFalse(date("2026-03-20"))
-
-    def test_check(self):
-        temp = []
-        self.assertEqual(check(temp), 0)
-
-        temp = [' ', "USD"]
-        self.assertEqual(check(temp), 1)
-
-        temp = [100]
-        self.assertEqual(check(temp), 2)
-
-        temp = [100, " "]
-        self.assertEqual(check(temp), 3)
-
-        temp = [100, "USD"]
-        self.assertIsNone(check(temp))
+        return temp
 
 
-if __name__ == '__main__':
-    # unittest.main()
-    interface("faktury")
+while True:
+
+    invoice = date_check("invoices.txt", interface("faktury"))
+    payment = date_check("payments.txt", interface("płatność"))
+    print(
+        f"Wartośc faktury wynosi {invoice[0]} {invoice[1]}, czyli {invoice[3]}PLN przy kursie {invoice[2]}.\n"
+        f"Wartośc płatności wynosi {payment[0]}{payment[1]}, czyli {payment[3]}PLN przy kursie {payment[2]}.\n"
+    )
+    if invoice[3] == payment[3]:
+        print(f"Faktura została opłacona w całości.")
+    elif invoice[3] < payment[3]:
+        print(f"Nastąpiła nadpłata, wymagany zwrot w kwocie",
+              round(float(payment[3]) - float(invoice[3]), 2), f"PLN.")
+    else:
+        print(f"Nastąpiła niedopłata, wymagana dopłata w kwocie",
+              round(float(invoice[3]) - float(payment[3]), 2), f"PLN.")
+
+    print("\n\n")
